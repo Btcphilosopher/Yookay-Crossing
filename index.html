@@ -20,9 +20,10 @@
     height: 40px; /* same height as the bar */
   }
 </style>
+<head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Nick's Yookay Crossing</title>
+    <title>Nick's Yookay Crossing - Endless</title>
     <style>
         body {
             margin: 0;
@@ -79,7 +80,7 @@
             font-weight: bold;
         }
 
-        .score, .level, .hp {
+        .score, .level, .hp, .difficulty {
             background: rgba(0,0,0,0.7);
             padding: 10px 20px;
             border-radius: 8px;
@@ -93,6 +94,10 @@
         .hp.low {
             color: #e74c3c;
             animation: pulse 1s infinite;
+        }
+
+        .difficulty {
+            color: #f39c12;
         }
 
         @keyframes pulse {
@@ -139,28 +144,30 @@
         }
 
         .game-over {
-            position: absolute;
+            position: fixed;
             top: 50%;
             left: 50%;
             transform: translate(-50%, -50%);
-            background: rgba(0,0,0,0.9);
+            background: rgba(0,0,0,0.95);
             color: white;
             padding: 30px;
             border-radius: 10px;
             text-align: center;
             border: 3px solid #e74c3c;
             display: none;
+            z-index: 1000;
         }
 
         .restart-btn {
             background: #3498db;
             color: white;
             border: none;
-            padding: 10px 20px;
+            padding: 12px 25px;
             border-radius: 5px;
             cursor: pointer;
             font-size: 16px;
             margin-top: 15px;
+            transition: background 0.3s;
         }
 
         .restart-btn:hover {
@@ -168,24 +175,36 @@
         }
 
         .level-complete {
-            position: absolute;
+            position: fixed;
             top: 50%;
             left: 50%;
             transform: translate(-50%, -50%);
-            background: rgba(0,0,0,0.9);
+            background: rgba(0,0,0,0.95);
             color: white;
             padding: 30px;
             border-radius: 10px;
             text-align: center;
             border: 3px solid #27ae60;
             display: none;
+            z-index: 1000;
+        }
+
+        .endless-notice {
+            background: rgba(241, 196, 15, 0.2);
+            border: 2px solid #f1c40f;
+            padding: 10px;
+            margin: 10px 0;
+            border-radius: 8px;
+            text-align: center;
+            color: #f1c40f;
+            font-weight: bold;
         }
     </style>
 </head>
 <body>
     <div class="game-header">
-        <h1>🏴󠁧󠁢󠁥󠁮󠁧󠁿 NICK'S YOOKAY CROSSING 🏴󠁧󠁢󠁥󠁮󠁧󠁿</h1>
-        <p>Nick, 30, navigating the chaotic streets of the Yookay to get to work!</p>
+        <h1>🏴󠁧󠁢󠁥󠁮󠁧󠁿 NICK'S ENDLESS YOOKAY CROSSING 🏴󠁧󠁢󠁥󠁮󠁧󠁿</h1>
+        <p>Nick, 30, on his never-ending commute through the chaotic streets of the Yookay!</p>
     </div>
 
     <div class="damage-key">
@@ -199,8 +218,13 @@
 
     <div class="game-info">
         <div class="score">Score: <span id="score">0</span></div>
-        <div class="level">Street: <span id="level">1</span>/8</div>
+        <div class="level">Street: <span id="streetNum">1</span>/8</div>
+        <div class="difficulty">Level: <span id="difficultyLevel">1</span></div>
         <div class="hp" id="hpDisplay">HP: <span id="hp">100</span>/100</div>
+    </div>
+
+    <div class="endless-notice">
+        ⚡ ENDLESS MODE: Complete all 8 streets to increase difficulty level! ⚡
     </div>
 
     <div class="street-info">
@@ -213,22 +237,23 @@
 
     <div class="controls">
         <h3>Controls</h3>
-        <p>🔴 Use ARROW KEYS to move Nick safely across 8 streets of Yookay chaos</p>
-        <p>🔴 Use traffic islands as safe zones • Grab food to heal • Avoid all the madness!</p>
+        <p>🔴 Use ARROW KEYS to move Nick safely across endless Yookay streets</p>
+        <p>🔴 Complete all 8 streets to increase difficulty • Game never ends!</p>
     </div>
 
     <div class="game-over" id="gameOver">
         <h2>Nick Didn't Make It!</h2>
         <p id="gameOverMessage">The streets of the Yookay claimed another victim...</p>
         <p>Final Score: <span id="finalScore">0</span></p>
+        <p>Streets Completed: <span id="streetsCompleted">0</span></p>
         <button class="restart-btn" onclick="restartGame()">Try Again</button>
     </div>
 
     <div class="level-complete" id="levelComplete">
-        <h2>Street Crossed!</h2>
-        <p>Nick made it across another Yookay street!</p>
+        <h2 id="completeTitle">Street Crossed!</h2>
+        <p id="completeMessage">Nick made it across another Yookay street!</p>
         <p>Bonus: <span id="levelBonus">0</span> points</p>
-        <button class="restart-btn" onclick="nextStreet()">Next Street</button>
+        <button class="restart-btn" id="nextBtn" onclick="nextStreet()">Next Street</button>
     </div>
 
     <script>
@@ -238,12 +263,14 @@
         // Game state
         let gameState = {
             score: 0,
-            level: 1,
+            streetNumber: 1,        // Current street (1-8)
+            difficultyLevel: 1,     // Overall difficulty level (increases after completing all 8 streets)
             hp: 100,
             maxHp: 100,
             gameOver: false,
             paused: false,
-            currentStreet: 0
+            currentStreetIndex: 0,   // Index for street names array
+            streetsCompleted: 0
         };
 
         // Yookay streets - 8 different London streets
@@ -273,7 +300,6 @@
 
         // Obstacles and items
         let obstacles = [];
-        let items = [];
 
         // Object types with damage/healing values
         const objectTypes = {
@@ -291,15 +317,22 @@
             tea: { symbol: '☕', color: '#8b4513', width: 25, height: 25, speed: 1, heal: 10, friendly: true }
         };
 
-        // Initialize traffic islands - they move between levels
+        // Get current difficulty multiplier
+        function getDifficultyMultiplier() {
+            return 1 + (gameState.difficultyLevel - 1) * 0.4;
+        }
+
+        // Initialize traffic islands - they move between levels and get more complex
         function createTrafficIslands() {
             trafficIslands = [];
-            const numIslands = 2 + Math.floor(gameState.level / 2);
+            const baseIslands = 2 + Math.floor(gameState.streetNumber / 2);
+            const difficultyIslands = Math.floor(gameState.difficultyLevel / 2);
+            const numIslands = Math.min(baseIslands + difficultyIslands, 6); // Cap at 6 islands
             
             for (let i = 0; i < numIslands; i++) {
                 const island = {
                     x: 100 + Math.random() * (canvas.width - 200),
-                    y: 120 + (i * 80) + Math.random() * 40,
+                    y: 120 + (i * 70) + Math.random() * 30,
                     width: 80,
                     height: 40,
                     safe: true
@@ -311,8 +344,8 @@
         // Initialize obstacles with 8 lanes
         function createObstacles() {
             obstacles = [];
-            items = [];
             const lanes = 8;
+            const difficultyMultiplier = getDifficultyMultiplier();
             
             for (let i = 0; i < lanes; i++) {
                 const lane = {
@@ -322,19 +355,21 @@
                     direction: i % 2 === 0 ? 1 : -1,
                     lastSpawn: 0,
                     lastItemSpawn: 0,
-                    speed: 1 + (gameState.level * 0.2)
+                    speed: (1 + (gameState.streetNumber * 0.1)) * difficultyMultiplier
                 };
                 obstacles.push(lane);
             }
         }
 
-        // Spawn obstacle in lane
+        // Spawn obstacle in lane - gets more frequent with difficulty
         function spawnObstacle(laneIndex) {
             const lane = obstacles[laneIndex];
             const now = Date.now();
+            const difficultyMultiplier = getDifficultyMultiplier();
             
-            // Spawn obstacles
-            if (now - lane.lastSpawn > 1500 + Math.random() * 2500) {
+            // Spawn obstacles - more frequent as difficulty increases
+            const spawnDelay = Math.max(800, 2000 - (gameState.difficultyLevel * 200)) + Math.random() * 1500;
+            if (now - lane.lastSpawn > spawnDelay) {
                 const hostileTypes = Object.keys(objectTypes).filter(key => objectTypes[key].hostile);
                 const typeKey = hostileTypes[Math.floor(Math.random() * hostileTypes.length)];
                 const objType = objectTypes[typeKey];
@@ -353,8 +388,9 @@
                 lane.lastSpawn = now;
             }
             
-            // Spawn friendly items occasionally
-            if (now - lane.lastItemSpawn > 8000 + Math.random() * 5000) {
+            // Spawn friendly items less frequently as difficulty increases
+            const itemSpawnDelay = Math.max(5000, 10000 - (gameState.difficultyLevel * 1000)) + Math.random() * 8000;
+            if (now - lane.lastItemSpawn > itemSpawnDelay) {
                 const friendlyTypes = Object.keys(objectTypes).filter(key => objectTypes[key].friendly);
                 const typeKey = friendlyTypes[Math.floor(Math.random() * friendlyTypes.length)];
                 const itemType = objectTypes[typeKey];
@@ -364,7 +400,7 @@
                     y: lane.y + Math.random() * 20,
                     width: itemType.width,
                     height: itemType.height,
-                    speed: itemType.speed * lane.speed,
+                    speed: itemType.speed * lane.speed * 0.7, // Items move slower
                     direction: lane.direction,
                     heal: itemType.heal,
                     ...itemType
@@ -411,8 +447,9 @@
         function drawGame() {
             ctx.clearRect(0, 0, canvas.width, canvas.height);
             
-            // Draw road
-            ctx.fillStyle = '#34495e';
+            // Draw road - darker as difficulty increases
+            const roadDarkness = Math.min(50, gameState.difficultyLevel * 5);
+            ctx.fillStyle = `rgb(${52-roadDarkness}, ${73-roadDarkness}, ${94-roadDarkness})`;
             ctx.fillRect(0, 60, canvas.width, 560);
             
             // Draw lane lines
@@ -469,7 +506,7 @@
                 });
             });
             
-            // Draw player (Nick)
+            // Draw player (Nick) with difficulty-based effects
             if (player.invulnerable > 0) {
                 ctx.globalAlpha = Math.sin(Date.now() / 100) * 0.5 + 0.5;
             }
@@ -519,7 +556,7 @@
         // Player hit
         function playerHit(damage) {
             gameState.hp -= damage;
-            player.invulnerable = 120; // 2 seconds at 60fps
+            player.invulnerable = 120;
             gameState.score = Math.max(0, gameState.score - 10);
             
             updateDisplay();
@@ -554,10 +591,33 @@
         // Check win condition
         function checkWin() {
             if (player.y <= 60) {
-                const bonus = gameState.hp + (gameState.level * 50);
+                const bonus = gameState.hp + (gameState.difficultyLevel * 50) + (gameState.streetNumber * 25);
                 gameState.score += bonus;
+                gameState.streetsCompleted++;
                 
                 document.getElementById('levelBonus').textContent = bonus;
+                
+                // Check if completed all 8 streets
+                if (gameState.streetNumber >= 8) {
+                    // Increase difficulty level and reset to street 1
+                    gameState.difficultyLevel++;
+                    gameState.streetNumber = 1;
+                    gameState.currentStreetIndex = 0;
+                    
+                    document.getElementById('completeTitle').textContent = 'All Streets Conquered!';
+                    document.getElementById('completeMessage').textContent = 
+                        `Nick completed all 8 Yookay streets! Difficulty level increased to ${gameState.difficultyLevel}!`;
+                    document.getElementById('nextBtn').textContent = 'Continue the Endless Journey!';
+                } else {
+                    // Next street
+                    gameState.streetNumber++;
+                    gameState.currentStreetIndex = (gameState.currentStreetIndex + 1) % streets.length;
+                    
+                    document.getElementById('completeTitle').textContent = 'Street Crossed!';
+                    document.getElementById('completeMessage').textContent = 'Nick made it across another Yookay street!';
+                    document.getElementById('nextBtn').textContent = 'Next Street';
+                }
+                
                 document.getElementById('levelComplete').style.display = 'block';
                 gameState.paused = true;
             }
@@ -565,14 +625,6 @@
 
         // Next street
         function nextStreet() {
-            gameState.level++;
-            gameState.currentStreet = (gameState.currentStreet + 1) % streets.length;
-            
-            if (gameState.level > 8) {
-                endGame("Nick conquered all 8 Yookay streets! What a legend!");
-                return;
-            }
-            
             player.x = canvas.width / 2;
             player.y = canvas.height - 50;
             
@@ -587,9 +639,10 @@
         // Update display
         function updateDisplay() {
             document.getElementById('score').textContent = gameState.score;
-            document.getElementById('level').textContent = gameState.level;
+            document.getElementById('streetNum').textContent = gameState.streetNumber;
+            document.getElementById('difficultyLevel').textContent = gameState.difficultyLevel;
             document.getElementById('hp').textContent = gameState.hp;
-            document.getElementById('streetName').textContent = streets[gameState.currentStreet];
+            document.getElementById('streetName').textContent = streets[gameState.currentStreetIndex];
             
             const hpDisplay = document.getElementById('hpDisplay');
             if (gameState.hp <= 30) {
@@ -604,6 +657,7 @@
             gameState.gameOver = true;
             document.getElementById('gameOverMessage').textContent = message;
             document.getElementById('finalScore').textContent = gameState.score;
+            document.getElementById('streetsCompleted').textContent = gameState.streetsCompleted;
             document.getElementById('gameOver').style.display = 'block';
         }
 
@@ -611,12 +665,14 @@
         function restartGame() {
             gameState = {
                 score: 0,
-                level: 1,
+                streetNumber: 1,
+                difficultyLevel: 1,
                 hp: 100,
                 maxHp: 100,
                 gameOver: false,
                 paused: false,
-                currentStreet: 0
+                currentStreetIndex: 0,
+                streetsCompleted: 0
             };
             
             player.x = canvas.width / 2;
